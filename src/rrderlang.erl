@@ -29,8 +29,7 @@
 
 -define(SERVER, ?MODULE).
 -define(SEPARATOR, <<" ">>).
--define(TIMEOUT, 1000).
--define(PRECISION, 6).
+-define(TIMEOUT, 2000).
 
 -record(state, {port}).
 
@@ -92,8 +91,10 @@ update(Filename, Options, Values, Timestamp) when is_integer(Timestamp) ->
   update(Filename, Options, Values, integer_to_binary(Timestamp));
 update(Filename, Options, Values, Timestamp) ->
   try
-    BinaryValues = lists:map(fun(Elem) when is_float(Elem) -> float_to_binary(Elem);
-      (Elem) when is_integer(Elem) -> integer_to_binary(Elem) end, Values),
+    BinaryValues = lists:map(fun
+      (Elem) when is_float(Elem) -> float_to_binary(Elem);
+      (Elem) when is_integer(Elem) -> integer_to_binary(Elem);
+      (_) -> <<"U">> end, Values),
     Command = format([<<"update">>, Filename, Options, format([Timestamp | BinaryValues], <<":">>), <<"\n">>]),
     gen_server:call(?MODULE, {command, Command}, ?TIMEOUT)
   catch
@@ -108,7 +109,7 @@ update(Filename, Options, Values, Timestamp) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(fetch(Filename :: binary(), Options :: binary(), CF :: binary()) ->
-  {ok, Result :: binary()} |
+  {ok, Result :: {Timestamp :: integer(), [[float()]]}} |
   {error, Error :: term()}).
 fetch(Filename, Options, CF) ->
   try
@@ -123,7 +124,7 @@ fetch(Filename, Options, CF) ->
           Timestamp = binary_to_integer(BinaryTimestampNoColon),
           Values = lists:map(fun(Elem) when Elem =:= <<"-nan">> -> nan;
             (Elem) -> binary_to_float(Elem) end, BinaryValues),
-          {Timestamp, Values}
+          {ok, {Timestamp, Values}}
         end, BinaryData),
         {Header, Data};
       {error, Error} ->
@@ -196,7 +197,6 @@ init([]) ->
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
 handle_call({command, Command}, _From, State) ->
-  io:format("~p~n", [Command]),
   port_command(State#state.port, Command),
   case receive_data(State#state.port, []) of
     {ok, Data} -> {reply, {ok, Data}, State};
