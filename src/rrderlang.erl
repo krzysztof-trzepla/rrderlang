@@ -126,7 +126,7 @@ fetch(Filename, Options, CF) ->
             (Elem) -> binary_to_float(Elem) end, BinaryValues),
           {ok, {Timestamp, Values}}
         end, BinaryData),
-        {Header, Data};
+        {ok, {Header, Data}};
       {error, Error} ->
         {error, Error}
     end
