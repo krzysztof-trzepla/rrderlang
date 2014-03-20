@@ -124,7 +124,7 @@ fetch(Filename, Options, CF) ->
           Timestamp = binary_to_integer(BinaryTimestampNoColon),
           Values = lists:map(fun(Elem) when Elem =:= <<"-nan">> -> nan;
             (Elem) -> binary_to_float(Elem) end, BinaryValues),
-          {ok, {Timestamp, Values}}
+          {Timestamp, Values}
         end, BinaryData),
         {ok, {Header, Data}};
       {error, Error} ->
