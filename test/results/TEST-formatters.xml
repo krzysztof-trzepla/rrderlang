@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<testsuite tests="6" failures="0" errors="0" skipped="0" time="0.018" name="module 'formatters'">
-  <testcase time="0.000" name="formatters_tests:formatters_test_/0_0" description="default formatter should pass"/>
-  <testcase time="0.000" name="formatters_tests:formatters_test_/0_0" description="default formatter with 'nan' should pass"/>
-  <testcase time="0.000" name="formatters_tests:formatters_test_/0_0" description="default formatter should fail"/>
-  <testcase time="0.000" name="formatters_tests:formatters_test_/0_0" description="json formatter should pass"/>
-  <testcase time="0.000" name="formatters_tests:formatters_test_/0_0" description="json formatter with 'nan' should pass"/>
-  <testcase time="0.000" name="formatters_tests:formatters_test_/0_0" description="json formatter should fail"/>
-</testsuite>
