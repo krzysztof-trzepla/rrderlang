@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuite tests="10" failures="0" errors="0" skipped="0" time="10.118" name="module 'rrderlang'">
+  <testcase time="0.027" name="rrderlang_tests:rrderlang_test_/0_0" description="should start rrderlang application"/>
+  <testcase time="0.001" name="rrderlang_tests:rrderlang_test_/0_0" description="should create rrd"/>
+  <testcase time="0.000" name="rrderlang_tests:rrderlang_test_/0_0" description="should not create rrd when_missing parameters"/>
+  <testcase time="0.001" name="rrderlang_tests:rrderlang_test_/0_0" description="should not overwrite rrd"/>
+  <testcase time="0.002" name="rrderlang_tests:rrderlang_test_/0_0" description="should update rrd"/>
+  <testcase time="0.001" name="rrderlang_tests:rrderlang_test_/0_0" description="should not update rrd when not created"/>
+  <testcase time="0.001" name="rrderlang_tests:rrderlang_test_/0_0" description="should not update rrd when missing parameters"/>
+  <testcase time="10.024" name="rrderlang_tests:rrderlang_test_/0_0" description="should fetch data"/>
+  <testcase time="0.001" name="rrderlang_tests:rrderlang_test_/0_0" description="should not fetch data"/>
+  <testcase time="0.002" name="rrderlang_tests:rrderlang_test_/0_0" description="should stop rrderlang application"/>
+</testsuite>
