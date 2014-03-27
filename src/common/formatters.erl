@@ -25,8 +25,8 @@ default_formatter([<<>>, BinaryHeader], Data) ->
 default_formatter([<<BinaryTimestamp:10/binary, ": ", BinaryValues/binary>> | BinaryData], Data) ->
   Timestamp = binary_to_integer(BinaryTimestamp),
   Values = lists:map(fun
-    (<<"-nan">>) -> nan;
-    (BinaryValue) -> binary_to_float(BinaryValue)
+    (BinaryValue) -> try binary_to_float(BinaryValue)
+                     catch _:_ -> nan end
   end, binary:split(BinaryValues, ?SEPARATOR, [global])),
   default_formatter(BinaryData, [{Timestamp, Values} | Data]);
 default_formatter(_, _) ->
@@ -54,8 +54,8 @@ json_formatter([<<BinaryTimestamp:10/binary, ": ", BinaryValues/binary>> | Binar
     (Value) -> "{\"v\": " ++ Value ++ "}"
   end,
   Values = lists:map(fun
-    (<<"-nan">>) -> ", " ++ FormatValue("\"null\"");
-    (BinaryValue) -> ", " ++ FormatValue(binary_to_list(BinaryValue))
+    (BinaryValue) -> try binary_to_float(BinaryValue), ", " ++ FormatValue(BinaryValue)
+                     catch _:_ -> ", " ++ FormatValue("\"null\"") end
   end, binary:split(BinaryValues, ?SEPARATOR, [global])),
   Row = "{\"c\": [" ++ FormatValue("\"Date(" ++
     integer_to_list(binary_to_integer(BinaryTimestamp) * 1000) ++ ")\"") ++
