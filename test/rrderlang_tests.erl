@@ -161,12 +161,12 @@ should_fetch_selected_data() ->
   Filename = list_to_binary(?RRD_NAME),
   Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
   CF = <<"AVERAGE">>,
-  {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, [1], default),
+  {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, [<<"first">>], default),
 
   ?assertEqual(ok, FetchAnswer),
   ?assertEqual([<<"first">>], FetchHeader),
   lists:zipwith(fun
-    ({_, [Value | Rest]}, {_, [FetchValue | _]}) ->
+    ({_, [Value | _]}, {_, [FetchValue | Rest]}) ->
       ?assertEqual(Value, round(FetchValue)),
       ?assertEqual([], Rest)
   end, Data, FetchData).

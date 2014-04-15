@@ -306,9 +306,14 @@ execute_command(Command, Columns, json, State) ->
   execute_command(Command, Columns, fun formatters:json_formatter/1, State);
 execute_command(Command, Columns, Formatter, State) ->
   port_command(State#state.port, Command),
-  case receive_data(State#state.port, [], Columns) of
-    {ok, BinaryData} ->
-      {reply, Formatter(BinaryData), State};
+  case receive_header(State#state.port, [], Columns) of
+    {ok, {BinaryHeader, NewColumns}} ->
+      case receive_values(State#state.port, [], NewColumns) of
+        {ok, BinaryValues} ->
+          {reply, Formatter(BinaryValues ++ BinaryHeader), State};
+        {error, Error} ->
+          {reply, {error, Error}, State}
+      end;
     {error, Error} ->
       {reply, {error, Error}, State}
   end.
@@ -325,55 +330,79 @@ receive_answer(Port, Acc) ->
       {error, Other}
   end.
 
-receive_data(Port, Acc, all) ->
-  receive_answer(Port, Acc);
-receive_data(Port, Acc, Columns) ->
+receive_header(Port, Acc, all) ->
   receive
-    {Port, {data, {eol, <<"OK", _/binary>>}}} ->
-      {ok, Acc};
+    {Port, {data, {eol, <<>>}}} ->
+      {ok, {[<<>> | Acc], all}};
     {Port, {data, {eol, <<"ERROR: ", Error/binary>>}}} ->
       {error, Error};
     {Port, {data, {eol, Data}}} ->
-      case select_data(Data, Columns) of
-        {ok, {Data, NewColumns}} ->
-          io:format(user, "Received data ---> ~w~n", [{Data, NewColumns}]),
-          receive_data(Port, [Data | Acc], NewColumns);
+      receive_header(Port, [Data | Acc], all);
+    Other ->
+      {error, Other}
+  end;
+receive_header(Port, Acc, Columns) ->
+  receive
+    {Port, {data, {eol, <<>>}}} ->
+      {ok, {[<<>> | Acc], Columns}};
+    {Port, {data, {eol, <<"ERROR: ", Error/binary>>}}} ->
+      {error, Error};
+    {Port, {data, {eol, Data}}} ->
+      case select_header(Data, Columns) of
+        {ok, {NewData, NewColumns}} ->
+          receive_header(Port, [NewData | Acc], NewColumns);
         {error, Error} -> {error, Error}
       end;
     Other ->
       {error, Other}
   end.
 
-select_data(Data, [0 | Columns]) ->
+receive_values(Port, Acc, all) ->
+  receive_answer(Port, Acc);
+receive_values(Port, Acc, Columns) ->
+  receive
+    {Port, {data, {eol, <<"OK", _/binary>>}}} ->
+      {ok, Acc};
+    {Port, {data, {eol, <<"ERROR: ", Error/binary>>}}} ->
+      {error, Error};
+    {Port, {data, {eol, Data}}} ->
+      case select_values(Data, Columns) of
+        {ok, {NewData, NewColumns}} ->
+          receive_values(Port, [NewData | Acc], NewColumns);
+        {error, Error} -> {error, Error}
+      end;
+    Other ->
+      {error, Other}
+  end.
+
+select_header(Data, Columns) ->
   Values = lists:filter(fun
     (Value) -> Value =/= <<>>
   end, binary:split(Data, ?SEPARATOR, [global])),
-  select_data(Values, [0 | Columns], [], 0, []);
-select_data(Data, Columns) ->
-  select_data(Data, [0 | Columns]).
+  select_data(Values, Columns, [], 1, [0]).
+
+select_values(Data, Columns) ->
+  Values = lists:filter(fun
+    (Value) -> Value =/= <<>>
+  end, binary:split(Data, ?SEPARATOR, [global])),
+  select_data(Values, Columns, [], 0, []).
 
 select_data(_, [], Acc, _, NewColumns) ->
-  io:format(user, "~n1 ---> ~w~n", [{Acc, NewColumns}]),
-  Data = lists:foldl(fun(Binary, BinaryAcc) ->
-    <<Binary/binary, " ", BinaryAcc/binary>>
+  Data = lists:foldl(fun
+    (Binary, <<>>) -> Binary;
+    (Binary, BinaryAcc) -> <<Binary/binary, " ", BinaryAcc/binary>>
   end, <<>>, Acc),
   Columns = lists:reverse(NewColumns),
-  io:format(user, "Data ---> ~w~n~w~n", [Data, Columns]),
   {ok, {Data, Columns}};
 select_data([], _, _, _, _) ->
-  io:format(user, "~n2 ---> ~w~n", ["END"]),
   {error, <<"Selection error: no more data.">>};
 select_data([Column | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->
-  io:format(user, "~n3 ---> ~w~n", [{[Column | Values], [Column | Columns], Acc, N, NewColumns}]),
   select_data(Values, Columns, [Column | Acc], N + 1, [N | NewColumns]);
 select_data([_ | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->
-  io:format(user, "~n4 ---> ~w~n", [{[Column | Values], [Column | Columns], Acc, N, NewColumns}]),
-  select_data(Values, Columns, Acc, N + 1, NewColumns);
+  select_data(Values, [Column | Columns], Acc, N + 1, NewColumns);
 select_data([Value | Values], [N | Columns], Acc, N, NewColumns) ->
-  io:format(user, "~n5 ---> ~w~n", [{[Value | Values], [N | Columns], Acc, N, NewColumns}]),
   select_data(Values, Columns, [Value | Acc], N + 1, [N | NewColumns]);
-select_data([_ | Values], [_ | Columns], Acc, N, NewColumns) ->
-  io:format(user, "~n6 ---> ~w~n", [{Values, Columns, Acc, N, NewColumns}]),
+select_data([_ | Values], Columns, Acc, N, NewColumns) ->
   select_data(Values, Columns, Acc, N + 1, NewColumns).
 
 
