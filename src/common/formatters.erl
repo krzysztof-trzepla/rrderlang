@@ -54,7 +54,7 @@ json_formatter([<<BinaryTimestamp:10/binary, ": ", BinaryValues/binary>> | Binar
     (Value) -> "{\"v\": " ++ Value ++ "}"
   end,
   Values = lists:map(fun
-    (BinaryValue) -> try binary_to_float(BinaryValue), ", " ++ FormatValue(BinaryValue)
+    (BinaryValue) -> try _Result = binary_to_float(BinaryValue), ", " ++ FormatValue(BinaryValue)
                      catch _:_ -> ", " ++ FormatValue("\"null\"") end
   end, binary:split(BinaryValues, ?SEPARATOR, [global])),
   Row = "{\"c\": [" ++ FormatValue("\"Date(" ++

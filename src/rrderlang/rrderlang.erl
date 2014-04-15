@@ -16,7 +16,8 @@
 -export([start_link/0]).
 -export([create/4,
   fetch/3,
-  fetch_json/3,
+  fetch/4,
+  fetch/5,
   update/3,
   update/4,
   graph/2]).
@@ -59,8 +60,7 @@ start_link() ->
   {error, Error :: term()}).
 create(Filename, Options, DSs, RRAs) ->
   try
-    Command = format([<<"create">>, Filename, Options, format(DSs), format(RRAs), <<"\n">>]),
-    gen_server:call(?MODULE, {command, Command}, ?TIMEOUT)
+    gen_server:call(?MODULE, {create, Filename, Options, DSs, RRAs}, ?TIMEOUT)
   catch
     Error:Reason ->
       {Error, Reason}
@@ -91,12 +91,7 @@ update(Filename, Options, Values, Timestamp) when is_integer(Timestamp) ->
   update(Filename, Options, Values, integer_to_binary(Timestamp));
 update(Filename, Options, Values, Timestamp) ->
   try
-    BinaryValues = lists:map(fun
-      (Elem) when is_float(Elem) -> float_to_binary(Elem);
-      (Elem) when is_integer(Elem) -> integer_to_binary(Elem);
-      (_) -> <<"U">> end, Values),
-    Command = format([<<"update">>, Filename, Options, format([Timestamp | BinaryValues], <<":">>), <<"\n">>]),
-    gen_server:call(?MODULE, {command, Command}, ?TIMEOUT)
+    gen_server:call(?MODULE, {update, Filename, Options, Values, Timestamp}, ?TIMEOUT)
   catch
     Error:Reason ->
       {Error, Reason}
@@ -104,7 +99,7 @@ update(Filename, Options, Values, Timestamp) ->
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Fetch data Round Robin Database.
+%% Fetch all columns from Round Robin Database and return them in default format.
 %%
 %% @end
 %%--------------------------------------------------------------------
@@ -112,20 +107,36 @@ update(Filename, Options, Values, Timestamp) ->
   {ok, Result :: {Timestamp :: integer(), [[float()]]}} |
   {error, Error :: term()}).
 fetch(Filename, Options, CF) ->
-  fetch(Filename, Options, CF, fun formatters:default_formatter/1).
+  fetch(Filename, Options, CF, all, default).
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Fetch data Round Robin Database and return in json format
-%% applicable for Google Charts API.
+%% Fetch all columns Round Robin Database and return them in specified format.
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(fetch_json(Filename :: binary(), Options :: binary(), CF :: binary()) ->
-  {ok, Result :: {Timestamp :: integer(), [[float()]]}} |
+-spec(fetch(Filename :: binary(), Options :: binary(), CF :: binary(), Formatter :: default | json) ->
+  {ok, Result :: term()} |
   {error, Error :: term()}).
-fetch_json(Filename, Options, CF) ->
-  fetch(Filename, Options, CF, fun formatters:json_formatter/1).
+fetch(Filename, Options, CF, Formatter) ->
+  fetch(Filename, Options, CF, all, Formatter).
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Fetch specified columns Round Robin Database and return them in specified format.
+%%
+%% @end
+%%--------------------------------------------------------------------
+-spec(fetch(Filename :: binary(), Options :: binary(), CF :: binary(), Columns :: all | [binary() | integer()], Formatter :: default | json) ->
+  {ok, Result :: term()} |
+  {error, Error :: term()}).
+fetch(Filename, Options, CF, Columns, Formatter) ->
+  try
+    gen_server:call(?MODULE, {fetch, Filename, Options, CF, Columns, Formatter}, ?TIMEOUT)
+  catch
+    Error:Reason ->
+      {Error, Reason}
+  end.
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -138,11 +149,10 @@ fetch_json(Filename, Options, CF) ->
   {error, Error :: term()}).
 graph(Filename, Options) ->
   try
-    Command = format([<<"graph">>, Filename, Options]),
-    gen_server:call(?MODULE, {command, Command}, ?TIMEOUT)
+    gen_server:call(?MODULE, {graph, Filename, Options}, ?TIMEOUT)
   catch
-    _:Reason ->
-      {error, Reason}
+    Error:Reason ->
+      {Error, Reason}
   end.
 
 %%%===================================================================
@@ -188,12 +198,22 @@ init([]) ->
   {noreply, NewState :: #state{}, timeout() | hibernate} |
   {stop, Reason :: term(), Reply :: term(), NewState :: #state{}} |
   {stop, Reason :: term(), NewState :: #state{}}).
-handle_call({command, Command}, _From, State) ->
-  port_command(State#state.port, Command),
-  case receive_answer(State#state.port, []) of
-    {ok, Answer} -> {reply, {ok, Answer}, State};
-    {error, Error} -> {reply, {error, Error}, State}
-  end;
+handle_call({create, Filename, Options, DSs, RRAs}, _From, State) ->
+  Command = format_command([<<"create">>, Filename, Options, format_command(DSs), format_command(RRAs), <<"\n">>]),
+  execute_command(Command, State);
+handle_call({update, Filename, Options, Values, Timestamp}, _From, State) ->
+  BinaryValues = lists:map(fun
+    (Elem) when is_float(Elem) -> float_to_binary(Elem);
+    (Elem) when is_integer(Elem) -> integer_to_binary(Elem);
+    (_) -> <<"U">> end, Values),
+  Command = format_command([<<"update">>, Filename, Options, format_command([Timestamp | BinaryValues], <<":">>), <<"\n">>]),
+  execute_command(Command, State);
+handle_call({fetch, Filename, Options, CF, Columns, Formatter}, _From, State) ->
+  Command = format_command([<<"fetch">>, Filename, CF, Options, <<"\n">>]),
+  execute_command(Command, Columns, Formatter, State);
+handle_call({graph, Filename, Options}, _From, State) ->
+  Command = format_command([<<"graph">>, Filename, Options]),
+  execute_command(Command, State);
 handle_call(_Request, _From, State) ->
   {reply, ok, State}.
 
@@ -264,13 +284,34 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-format(Command) ->
-  format(Command, ?SEPARATOR).
+format_command(Command) ->
+  format_command(Command, ?SEPARATOR).
 
-format([], _) ->
+format_command([], _) ->
   <<>>;
-format([Command | Commands], Separator) ->
+format_command([Command | Commands], Separator) ->
   lists:foldl(fun(Elem, Acc) -> <<Acc/binary, Separator/binary, Elem/binary>> end, Command, Commands).
+
+execute_command(Command, State) ->
+  port_command(State#state.port, Command),
+  case receive_answer(State#state.port, []) of
+    {ok, Answer} -> {reply, {ok, Answer}, State};
+    {error, Error} -> {reply, {error, Error}, State}
+  end.
+
+
+execute_command(Command, Columns, default, State) ->
+  execute_command(Command, Columns, fun formatters:default_formatter/1, State);
+execute_command(Command, Columns, json, State) ->
+  execute_command(Command, Columns, fun formatters:json_formatter/1, State);
+execute_command(Command, Columns, Formatter, State) ->
+  port_command(State#state.port, Command),
+  case receive_data(State#state.port, [], Columns) of
+    {ok, BinaryData} ->
+      {reply, Formatter(BinaryData), State};
+    {error, Error} ->
+      {reply, {error, Error}, State}
+  end.
 
 receive_answer(Port, Acc) ->
   receive
@@ -284,16 +325,56 @@ receive_answer(Port, Acc) ->
       {error, Other}
   end.
 
-fetch(Filename, Options, CF, Formatter) ->
-  try
-    Command = format([<<"fetch">>, Filename, CF, Options, <<"\n">>]),
-    case gen_server:call(?MODULE, {command, Command}, ?TIMEOUT) of
-      {ok, BinaryData} ->
-        Formatter(BinaryData);
-      {error, Error} ->
-        {error, Error}
-    end
-  catch
-    _:Reason ->
-      {error, Reason}
+receive_data(Port, Acc, all) ->
+  receive_answer(Port, Acc);
+receive_data(Port, Acc, Columns) ->
+  receive
+    {Port, {data, {eol, <<"OK", _/binary>>}}} ->
+      {ok, Acc};
+    {Port, {data, {eol, <<"ERROR: ", Error/binary>>}}} ->
+      {error, Error};
+    {Port, {data, {eol, Data}}} ->
+      case select_data(Data, Columns) of
+        {ok, {Data, NewColumns}} ->
+          io:format(user, "Received data ---> ~w~n", [{Data, NewColumns}]),
+          receive_data(Port, [Data | Acc], NewColumns);
+        {error, Error} -> {error, Error}
+      end;
+    Other ->
+      {error, Other}
   end.
+
+select_data(Data, [0 | Columns]) ->
+  Values = lists:filter(fun
+    (Value) -> Value =/= <<>>
+  end, binary:split(Data, ?SEPARATOR, [global])),
+  select_data(Values, [0 | Columns], [], 0, []);
+select_data(Data, Columns) ->
+  select_data(Data, [0 | Columns]).
+
+select_data(_, [], Acc, _, NewColumns) ->
+  io:format(user, "~n1 ---> ~w~n", [{Acc, NewColumns}]),
+  Data = lists:foldl(fun(Binary, BinaryAcc) ->
+    <<Binary/binary, " ", BinaryAcc/binary>>
+  end, <<>>, Acc),
+  Columns = lists:reverse(NewColumns),
+  io:format(user, "Data ---> ~w~n~w~n", [Data, Columns]),
+  {ok, {Data, Columns}};
+select_data([], _, _, _, _) ->
+  io:format(user, "~n2 ---> ~w~n", ["END"]),
+  {error, <<"Selection error: no more data.">>};
+select_data([Column | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->
+  io:format(user, "~n3 ---> ~w~n", [{[Column | Values], [Column | Columns], Acc, N, NewColumns}]),
+  select_data(Values, Columns, [Column | Acc], N + 1, [N | NewColumns]);
+select_data([_ | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->
+  io:format(user, "~n4 ---> ~w~n", [{[Column | Values], [Column | Columns], Acc, N, NewColumns}]),
+  select_data(Values, Columns, Acc, N + 1, NewColumns);
+select_data([Value | Values], [N | Columns], Acc, N, NewColumns) ->
+  io:format(user, "~n5 ---> ~w~n", [{[Value | Values], [N | Columns], Acc, N, NewColumns}]),
+  select_data(Values, Columns, [Value | Acc], N + 1, [N | NewColumns]);
+select_data([_ | Values], [_ | Columns], Acc, N, NewColumns) ->
+  io:format(user, "~n6 ---> ~w~n", [{Values, Columns, Acc, N, NewColumns}]),
+  select_data(Values, Columns, Acc, N + 1, NewColumns).
+
+
+

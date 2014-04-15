@@ -36,6 +36,7 @@ rrderlang_test_() ->
       {"should not update rrd when missing parameters", fun should_not_update_rrd_when_missing_parameters/0},
       {"should fetch data", {timeout, 15, fun should_fetch_data/0}},
       {"should not fetch data", fun should_not_fetch_data/0},
+      {"should fetch selected data", {timeout, 15, fun should_fetch_selected_data/0}},
       {"should stop rrderlang application", fun should_stop_rrderlang_application/0}
     ]
   }.
@@ -147,6 +148,28 @@ should_not_fetch_data() ->
   CF = <<"AVERAGE">>,
   {FetchAnswer, _} = rrderlang:fetch(Filename, Options, CF),
   ?assertEqual(error, FetchAnswer).
+
+should_fetch_selected_data() ->
+  should_create_rrd(),
+
+  Data = update_rrd_ntimes(10, 1),
+  [{StartTime, _} | _] = Data,
+  BinaryStartTime = integer_to_binary(StartTime - 1),
+  {EndTime, _} = lists:last(Data),
+  BinaryEndTime = integer_to_binary(EndTime - 1),
+
+  Filename = list_to_binary(?RRD_NAME),
+  Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
+  CF = <<"AVERAGE">>,
+  {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, [1], default),
+
+  ?assertEqual(ok, FetchAnswer),
+  ?assertEqual([<<"first">>], FetchHeader),
+  lists:zipwith(fun
+    ({_, [Value | Rest]}, {_, [FetchValue | _]}) ->
+      ?assertEqual(Value, round(FetchValue)),
+      ?assertEqual([], Rest)
+  end, Data, FetchData).
 
 should_stop_rrderlang_application() ->
   ?assertEqual(ok, application:stop(rrderlang)).
