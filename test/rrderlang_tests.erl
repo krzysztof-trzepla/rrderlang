@@ -184,10 +184,10 @@ should_fetch_start_with_data() ->
   Filename = list_to_binary(?RRD_NAME),
   Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
   CF = <<"AVERAGE">>,
-  {FetchAnswer, {FetchHeader, _}} = rrderlang:fetch(Filename, Options, CF, [{starts_with, <<"fir">>}, {starts_with, <<"t">>}], default),
+  {FetchAnswer, {FetchHeader, _}} = rrderlang:fetch(Filename, Options, CF, {starts_with, <<"sec">>}, default),
 
   ?assertEqual(ok, FetchAnswer),
-  ?assertEqual([<<"first">>, <<"third">>], FetchHeader).
+  ?assertEqual([<<"second">>], FetchHeader).
 
 should_stop_rrderlang_application() ->
   ?assertEqual(ok, application:stop(rrderlang)).

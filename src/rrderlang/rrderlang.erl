@@ -394,16 +394,18 @@ select_data(_, [], Acc, _, NewColumns) ->
   end, <<>>, Acc),
   Columns = lists:reverse(NewColumns),
   {ok, {Data, Columns}};
+select_data([], {starts_with, _}, Acc, _, NewColumns) ->
+  select_data(undefined, [], Acc, undefined, NewColumns);
 select_data([], _, _, _, _) ->
   {error, <<"Selection error: no more data.">>};
-select_data([Value | Values], [{starts_with, Column} | Columns], Acc, N, NewColumns) when is_binary(Column) ->
+select_data([Value | Values], {starts_with, Column}, Acc, N, NewColumns) when is_binary(Column) ->
   Length = size(Column),
   case binary:longest_common_prefix([Value, Column]) of
-    Length -> select_data(Values, Columns, [Value | Acc], N + 1, [N | NewColumns]);
-    _ -> select_data(Values, [{starts_with, Column} | Columns], Acc, N + 1, NewColumns)
+    Length -> select_data(Values, {starts_with, Column}, [Value | Acc], N + 1, [N | NewColumns]);
+    _ -> select_data(Values, {starts_with, Column}, Acc, N + 1, NewColumns)
   end;
-select_data([_ | Values], [{starts_with, Column} | Columns], Acc, N, NewColumns) when is_binary(Column) ->
-  select_data(Values, [{starts_with, Column} | Columns], Acc, N + 1, NewColumns);
+select_data([_ | Values], {starts_with, Column}, Acc, N, NewColumns) when is_binary(Column) ->
+  select_data(Values, {starts_with, Column}, Acc, N + 1, NewColumns);
 select_data([Column | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->
   select_data(Values, Columns, [Column | Acc], N + 1, [N | NewColumns]);
 select_data([_ | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->
