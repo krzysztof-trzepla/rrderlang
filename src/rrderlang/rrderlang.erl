@@ -310,7 +310,6 @@ execute_command(Command, Columns, Formatter, State) ->
     {ok, {BinaryHeader, NewColumns}} ->
       case receive_values(State#state.port, [], NewColumns) of
         {ok, BinaryValues} ->
-          io:format(user, "~n~p ~p~n", [BinaryHeader, BinaryValues]),
           {reply, Formatter(BinaryValues ++ BinaryHeader), State};
         {error, Error} ->
           {reply, {error, Error}, State}
