@@ -173,7 +173,22 @@ should_fetch_selected_data() ->
   end, Data, FetchData).
 
 should_fetch_start_with_data() ->
-  should_create_rrd(),
+  Filename = list_to_binary(?RRD_NAME),
+  Step = <<"--step 1">>,
+  DSs = [
+    <<"DS:Aa:GAUGE:20:-100:100">>,
+    <<"DS:Bb:COUNTER:20:-100:100">>,
+    <<"DS:Ac:DERIVE:20:-100:100">>,
+    <<"DS:Cd:ABSOLUTE:20:-100:100">>
+  ],
+  RRAs = [
+    <<"RRA:AVERAGE:0.5:1:100">>,
+    <<"RRA:MIN:0.5:1:100">>,
+    <<"RRA:MAX:0.5:1:100">>,
+    <<"RRA:LAST:0.5:1:100">>
+  ],
+  {CreateAnswer, _} = rrderlang:create(Filename, Step, DSs, RRAs),
+  ?assertEqual(ok, CreateAnswer),
 
   Data = update_rrd_ntimes(10, 1),
   [{StartTime, _} | _] = Data,
@@ -181,13 +196,12 @@ should_fetch_start_with_data() ->
   {EndTime, _} = lists:last(Data),
   BinaryEndTime = integer_to_binary(EndTime - 1),
 
-  Filename = list_to_binary(?RRD_NAME),
   Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
   CF = <<"AVERAGE">>,
-  {FetchAnswer, {FetchHeader, _}} = rrderlang:fetch(Filename, Options, CF, {starts_with, <<"sec">>}, default),
+  {FetchAnswer, {FetchHeader, _}} = rrderlang:fetch(Filename, Options, CF, {starts_with, <<"A">>}, default),
 
   ?assertEqual(ok, FetchAnswer),
-  ?assertEqual([<<"second">>], FetchHeader).
+  ?assertEqual([<<"Aa">>, <<"Ac">>], FetchHeader).
 
 should_stop_rrderlang_application() ->
   ?assertEqual(ok, application:stop(rrderlang)).
