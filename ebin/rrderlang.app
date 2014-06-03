@@ -14,7 +14,7 @@
     kernel,
     stdlib
   ]},
-  {modules, [rrderlang, rrderlang_app, rrderlang_sup, formatters]},
+  {modules, [rrderlang, rrderlang_app, rrderlang_sup]},
   {mod, {rrderlang_app, []}},
   {env, []}
 ]}.
