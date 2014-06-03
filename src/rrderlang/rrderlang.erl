@@ -127,7 +127,7 @@ fetch(Filename, Options, CF, Formatter) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
--spec(fetch(Filename :: binary(), Options :: binary(), CF :: binary(), Columns :: all | [binary() | integer()], Formatter :: default | json) ->
+-spec(fetch(Filename :: binary(), Options :: binary(), CF :: binary(), Columns :: all | [binary() | {starts_with, binary()} | integer()], Formatter :: default | json) ->
   {ok, Result :: term()} |
   {error, Error :: term()}).
 fetch(Filename, Options, CF, Columns, Formatter) ->
@@ -396,6 +396,14 @@ select_data(_, [], Acc, _, NewColumns) ->
   {ok, {Data, Columns}};
 select_data([], _, _, _, _) ->
   {error, <<"Selection error: no more data.">>};
+select_data([Value | Values], [{starts_with, Column} | Columns], Acc, N, NewColumns) when is_binary(Column) ->
+  Length = size(Column),
+  case binary:longest_common_prefix([Value, Column]) of
+    Length -> select_data(Values, Columns, [Value | Acc], N + 1, [N | NewColumns]);
+    _ -> select_data(Values, Columns, Acc, N + 1, NewColumns)
+  end;
+select_data([_ | Values], [{starts_with, Column} | Columns], Acc, N, NewColumns) when is_binary(Column) ->
+  select_data(Values, [{starts_with, Column} | Columns], Acc, N + 1, NewColumns);
 select_data([Column | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->
   select_data(Values, Columns, [Column | Acc], N + 1, [N | NewColumns]);
 select_data([_ | Values], [Column | Columns], Acc, N, NewColumns) when is_binary(Column) ->

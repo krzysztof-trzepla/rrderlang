@@ -37,6 +37,7 @@ rrderlang_test_() ->
       {"should fetch data", {timeout, 15, fun should_fetch_data/0}},
       {"should not fetch data", fun should_not_fetch_data/0},
       {"should fetch selected data", {timeout, 15, fun should_fetch_selected_data/0}},
+      {"should fetch start with data", {timeout, 15, fun should_fetch_start_with_data/0}},
       {"should stop rrderlang application", fun should_stop_rrderlang_application/0}
     ]
   }.
@@ -162,6 +163,28 @@ should_fetch_selected_data() ->
   Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
   CF = <<"AVERAGE">>,
   {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, [<<"first">>], default),
+
+  ?assertEqual(ok, FetchAnswer),
+  ?assertEqual([<<"first">>], FetchHeader),
+  lists:zipwith(fun
+    ({_, [Value | _]}, {_, [FetchValue | Rest]}) ->
+      ?assertEqual(Value, round(FetchValue)),
+      ?assertEqual([], Rest)
+  end, Data, FetchData).
+
+should_fetch_start_with_data() ->
+  should_create_rrd(),
+
+  Data = update_rrd_ntimes(10, 1),
+  [{StartTime, _} | _] = Data,
+  BinaryStartTime = integer_to_binary(StartTime - 1),
+  {EndTime, _} = lists:last(Data),
+  BinaryEndTime = integer_to_binary(EndTime - 1),
+
+  Filename = list_to_binary(?RRD_NAME),
+  Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
+  CF = <<"AVERAGE">>,
+  {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, [{starts_with, <<"fir">>}], default),
 
   ?assertEqual(ok, FetchAnswer),
   ?assertEqual([<<"first">>], FetchHeader),
