@@ -400,7 +400,7 @@ select_data([Value | Values], [{starts_with, Column} | Columns], Acc, N, NewColu
   Length = size(Column),
   case binary:longest_common_prefix([Value, Column]) of
     Length -> select_data(Values, Columns, [Value | Acc], N + 1, [N | NewColumns]);
-    _ -> select_data(Values, Columns, Acc, N + 1, NewColumns)
+    _ -> select_data(Values, [{starts_with, Column} | Columns], Acc, N + 1, NewColumns)
   end;
 select_data([_ | Values], [{starts_with, Column} | Columns], Acc, N, NewColumns) when is_binary(Column) ->
   select_data(Values, [{starts_with, Column} | Columns], Acc, N + 1, NewColumns);

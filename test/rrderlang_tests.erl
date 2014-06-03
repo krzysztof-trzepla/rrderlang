@@ -184,15 +184,10 @@ should_fetch_start_with_data() ->
   Filename = list_to_binary(?RRD_NAME),
   Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
   CF = <<"AVERAGE">>,
-  {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, [{starts_with, <<"fir">>}], default),
+  {FetchAnswer, {FetchHeader, _}} = rrderlang:fetch(Filename, Options, CF, [{starts_with, <<"fir">>}, {starts_with, <<"t">>}], default),
 
   ?assertEqual(ok, FetchAnswer),
-  ?assertEqual([<<"first">>], FetchHeader),
-  lists:zipwith(fun
-    ({_, [Value | _]}, {_, [FetchValue | Rest]}) ->
-      ?assertEqual(Value, round(FetchValue)),
-      ?assertEqual([], Rest)
-  end, Data, FetchData).
+  ?assertEqual([<<"first">>, <<"third">>], FetchHeader).
 
 should_stop_rrderlang_application() ->
   ?assertEqual(ok, application:stop(rrderlang)).
