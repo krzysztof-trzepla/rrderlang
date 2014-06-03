@@ -27,6 +27,8 @@ rrderlang_test_() ->
     fun setup/0,
     fun teardown/1,
     [
+      {"should select columns", fun should_select_header/0},
+      {"should select row", fun should_select_row/0},
       {"should start rrderlang application", fun should_start_rrderlang_application/0},
       {"should create rrd", fun should_create_rrd/0},
       {"should not create rrd when_missing parameters", fun should_not_create_rrd_when_missing_parameters/0},
@@ -58,6 +60,42 @@ teardown(_) ->
 
 should_start_rrderlang_application() ->
   ?assertEqual(ok, application:start(rrderlang)).
+
+should_select_header() ->
+  Header = [<<"Aa">>, <<"Bb">>, <<"Ac">>, <<"Dd">>, <<"Bc">>],
+  {Status1, Result1} = rrderlang:select_header(Header, all),
+  ?assertEqual(ok, Status1),
+  {Header1, Columns1} = Result1,
+  ?assertEqual(Header, Header1),
+  ?assertEqual([1, 2, 3, 4, 5], Columns1),
+  {Status2, Result2} = rrderlang:select_header(Header, {index, [1, 3]}),
+  ?assertEqual(ok, Status2),
+  {Header2, Columns2} = Result2,
+  ?assertEqual([<<"Aa">>, <<"Ac">>], Header2),
+  ?assertEqual([1, 3], Columns2),
+  {Status3, Result3} = rrderlang:select_header(Header, {name, [<<"Aa">>, <<"Dd">>]}),
+  ?assertEqual(ok, Status3),
+  {Header3, Columns3} = Result3,
+  ?assertEqual([<<"Aa">>, <<"Dd">>], Header3),
+  ?assertEqual([1, 4], Columns3),
+  {Status4, Result4} = rrderlang:select_header(Header, {starts_with, [<<"A">>, <<"B">>]}),
+  ?assertEqual(ok, Status4),
+  {Header4, Columns4} = Result4,
+  ?assertEqual([<<"Aa">>, <<"Bb">>, <<"Ac">>, <<"Bc">>], Header4),
+  ?assertEqual([1, 2, 3, 5], Columns4).
+
+should_select_row() ->
+  Row = <<"timestamp: 1.1 1.2 1.3 1.4 1.5 1.6">>,
+  {Status1, Result1} = rrderlang:select_row(Row, [1, 2, 3, 4, 5, 6]),
+  ?assertEqual(ok, Status1),
+  ?assertEqual({<<"timestamp">>, [1.1, 1.2, 1.3, 1.4, 1.5, 1.6]}, Result1),
+  {Status2, Result2} = rrderlang:select_row(Row, [1, 3, 5]),
+  ?assertEqual(ok, Status2),
+  ?assertEqual({<<"timestamp">>, [1.1, 1.3, 1.5]}, Result2),
+  {Status3, Result3} = rrderlang:select_row(Row, [1, 6]),
+  ?assertEqual(ok, Status3),
+  ?assertEqual({<<"timestamp">>, [1.1, 1.6]}, Result3).
+
 
 should_create_rrd() ->
   Filename = list_to_binary(?RRD_NAME),
@@ -162,7 +200,7 @@ should_fetch_selected_data() ->
   Filename = list_to_binary(?RRD_NAME),
   Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
   CF = <<"AVERAGE">>,
-  {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, [<<"first">>], default),
+  {FetchAnswer, {FetchHeader, FetchData}} = rrderlang:fetch(Filename, Options, CF, {name, [<<"first">>]}),
 
   ?assertEqual(ok, FetchAnswer),
   ?assertEqual([<<"first">>], FetchHeader),
@@ -198,7 +236,7 @@ should_fetch_start_with_data() ->
 
   Options = <<"--start ", BinaryStartTime/binary, " --end ", BinaryEndTime/binary>>,
   CF = <<"AVERAGE">>,
-  {FetchAnswer, {FetchHeader, _}} = rrderlang:fetch(Filename, Options, CF, {starts_with, <<"A">>}, default),
+  {FetchAnswer, {FetchHeader, _}} = rrderlang:fetch(Filename, Options, CF, {starts_with, [<<"A">>]}),
 
   ?assertEqual(ok, FetchAnswer),
   ?assertEqual([<<"Aa">>, <<"Ac">>], FetchHeader).
@@ -206,9 +244,9 @@ should_fetch_start_with_data() ->
 should_stop_rrderlang_application() ->
   ?assertEqual(ok, application:stop(rrderlang)).
 
-%%%===================================================================
-%%% Internal functions
-%%%===================================================================
+%% %===================================================================
+%% % Internal functions
+%% %===================================================================
 
 update_rrd_ntimes(N, Step) ->
   update_rrd_ntimes(N, Step * 1000, []).
