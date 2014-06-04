@@ -85,16 +85,16 @@ should_select_header() ->
   ?assertEqual([1, 2, 3, 5], Columns4).
 
 should_select_row() ->
-  Row = <<"timestamp: 1.1 1.2 1.3 1.4 1.5 1.6">>,
+  Row = <<"1000000: 1.1 1.2 1.3 1.4 1.5 1.6">>,
   {Status1, Result1} = rrderlang:select_row(Row, [1, 2, 3, 4, 5, 6]),
   ?assertEqual(ok, Status1),
-  ?assertEqual({<<"timestamp">>, [1.1, 1.2, 1.3, 1.4, 1.5, 1.6]}, Result1),
+  ?assertEqual({1000000, [1.1, 1.2, 1.3, 1.4, 1.5, 1.6]}, Result1),
   {Status2, Result2} = rrderlang:select_row(Row, [1, 3, 5]),
   ?assertEqual(ok, Status2),
-  ?assertEqual({<<"timestamp">>, [1.1, 1.3, 1.5]}, Result2),
+  ?assertEqual({1000000, [1.1, 1.3, 1.5]}, Result2),
   {Status3, Result3} = rrderlang:select_row(Row, [1, 6]),
   ?assertEqual(ok, Status3),
-  ?assertEqual({<<"timestamp">>, [1.1, 1.6]}, Result3).
+  ?assertEqual({1000000, [1.1, 1.6]}, Result3).
 
 
 should_create_rrd() ->

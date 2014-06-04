@@ -108,8 +108,13 @@ update(Filename, Options, Values, Timestamp) ->
 %% @end
 %%--------------------------------------------------------------------
 -spec(fetch(Filename :: binary(), Options :: binary(), CF :: binary()) ->
-  {ok, Result :: {Timestamp :: integer(), [[float()]]}} |
-  {error, Error :: term()}).
+  {ok, {Header, Body}} |
+  {error, Error :: term()} when
+  Header :: [ColumnNames :: binary()],
+  Body :: [Row],
+  Row :: [{Timestamp, Values}],
+  Timestamp :: integer(),
+  Values :: [integer() | float()]).
 fetch(Filename, Options, CF) ->
   fetch(Filename, Options, CF, all).
 
@@ -125,8 +130,8 @@ fetch(Filename, Options, CF) ->
   Header :: [ColumnNames :: binary()],
   Body :: [Row],
   Row :: [{Timestamp, Values}],
-  Timestamp :: binary(),
-  Values :: binary()).
+  Timestamp :: integer(),
+  Values :: [integer() | float()]).
 fetch(Filename, Options, CF, Columns) ->
   try
     gen_server:call(?MODULE, {fetch, Filename, Options, CF, Columns}, ?TIMEOUT)
@@ -409,7 +414,7 @@ select_row(Data, Columns) ->
   try
     [TimeStamp, Values | _] = binary:split(Data, <<":">>, [global]),
     case select_row(split(Values), Columns, 1, []) of
-      {ok, Row} -> {ok, {TimeStamp, lists:reverse(Row)}};
+      {ok, Row} -> {ok, {binary_to_integer(TimeStamp), lists:reverse(Row)}};
       _ -> {error, <<"Body selection error.">>}
     end
   catch
